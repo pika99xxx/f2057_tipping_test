@@ -510,12 +510,51 @@ if door_enabled:
 
         door_open_distance = (door_width / 2) * math.sin(math.radians(door_open_angle))
 
-        door_pull_height = st.number_input(
-            f"门板 {i + 1} 拉力作用高度 mm",
-            min_value=0.0,
-            value=door_bottom_height + door_height / 2,
-            key=f"door_pull_height_{i}"
-        )
+       handle_position = st.selectbox(
+    f"门板 {i + 1} 拉手位置",
+    [
+        "最顶部（门板最上端）",
+        "顶部（90%高度）",
+        "中部（50%高度）",
+        "底部（20%高度）",
+        "最底部（门板最下端）",
+        "无拉手（push）"
+    ],
+    index=2,
+    key=f"handle_position_{i}"
+)
+
+if handle_position == "最顶部（门板最上端）":
+    handle_height_ratio = 1.0
+
+elif handle_position == "顶部（90%高度）":
+    handle_height_ratio = 0.9
+
+elif handle_position == "中部（50%高度）":
+    handle_height_ratio = 0.5
+
+elif handle_position == "底部（20%高度）":
+    handle_height_ratio = 0.2
+
+elif handle_position == "最底部（门板最下端）":
+    handle_height_ratio = 0.0
+
+else:
+    # 无拉手（push）
+    handle_height_ratio = 0.5
+
+door_pull_height = (
+    door_bottom_height
+    + door_height * handle_height_ratio
+)
+
+st.write(f"自动计算拉手高度：**{door_pull_height:.0f} mm**")
+
+st.caption(
+    "拉手高度：指 ASTM F2057 水平动态力测试时，"
+    "44N 水平拉力施加在门板上的位置高度。"
+    "高度越高，倾覆风险越大。"
+)
 
         door_weight_mode = st.radio(
             f"门板 {i + 1} 重量计算方式",
