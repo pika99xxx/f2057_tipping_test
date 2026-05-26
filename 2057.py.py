@@ -19,9 +19,25 @@ def calc_board_weight(length_mm, width_mm, thickness_mm, density_kg_m3):
 def calc_frame_weight(outer_length, outer_width, frame_width, thickness, density):
     inner_length = max(0, outer_length - 2 * frame_width)
     inner_width = max(0, outer_width - 2 * frame_width)
+
     outer_weight = calc_board_weight(outer_length, outer_width, thickness, density)
     inner_weight = calc_board_weight(inner_length, inner_width, thickness, density)
+
     return max(0, outer_weight - inner_weight)
+
+
+def get_handle_ratio(position):
+    if position == "最顶部（门板最上端）":
+        return 1.0
+    if position == "顶部（90%高度）":
+        return 0.9
+    if position == "中部（50%高度）":
+        return 0.5
+    if position == "底部（20%高度）":
+        return 0.2
+    if position == "最底部（门板最下端）":
+        return 0.0
+    return 0.5
 
 
 # =========================
@@ -65,6 +81,7 @@ with col2:
 - 1.5：非常保守，适合前期快速筛掉高风险设计
         """
     )
+
 
 # =========================
 # 2. 板件重量自动计算
@@ -122,6 +139,7 @@ if bottom_frame_enabled:
         max_value=60.0,
         value=50.0
     )
+
     bottom_frame_weight = calc_frame_weight(
         outer_length=width,
         outer_width=depth,
@@ -155,12 +173,20 @@ basic_cabinet_weight = (
 )
 
 st.subheader("基础柜体重量明细")
-st.write(f"顶板：{top_panel_weight:.2f} kg")
-st.write(f"底板：{bottom_panel_weight:.2f} kg")
-st.write(f"左侧板：{left_side_weight:.2f} kg")
-st.write(f"右侧板：{right_side_weight:.2f} kg")
-st.write(f"背板：{back_panel_weight:.2f} kg")
-st.write(f"底板加厚框：{bottom_frame_weight:.2f} kg")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric("顶板重量", f"{top_panel_weight:.2f} kg")
+    st.metric("底板重量", f"{bottom_panel_weight:.2f} kg")
+
+with col2:
+    st.metric("左侧板重量", f"{left_side_weight:.2f} kg")
+    st.metric("右侧板重量", f"{right_side_weight:.2f} kg")
+
+with col3:
+    st.metric("背板重量", f"{back_panel_weight:.2f} kg")
+    st.metric("底板加厚框重量", f"{bottom_frame_weight:.2f} kg")
 
 
 # =========================
@@ -301,7 +327,14 @@ for i in range(int(drawer_count)):
         + drawer_bottom_weight
     )
 
-    drawer_storage_volume_dm3 = drawer_inner_width * drawer_inner_depth * drawer_box_height / 1_000_000
+    drawer_storage_volume_dm3 = (
+        drawer_inner_width
+        * drawer_inner_depth
+        * drawer_box_height
+        / 1_000_000
+    )
+
+    drawer_center_height = drawer_bottom_height + drawer_outer_height / 2
 
     drawer_raw_data.append({
         "index": i + 1,
@@ -309,16 +342,17 @@ for i in range(int(drawer_count)):
         "storage_volume_dm3": drawer_storage_volume_dm3,
         "bottom_height": drawer_bottom_height,
         "outer_height": drawer_outer_height,
-        "center_height": drawer_bottom_height + drawer_outer_height / 2,
+        "center_height": drawer_center_height,
         "extension": drawer_extension,
         "inner_width": drawer_inner_width,
         "inner_depth": drawer_inner_depth,
         "box_height": drawer_box_height,
     })
 
+    st.write(f"抽面计算尺寸：**{drawer_front_width:.0f} × {drawer_front_height:.0f} mm**")
     st.write(f"抽屉结构自重：**{single_drawer_structure_weight:.2f} kg**")
     st.write(f"抽屉封闭存储体积：**{drawer_storage_volume_dm3:.2f} dm³**")
-    st.write(f"抽屉中心离地高度：**{drawer_bottom_height + drawer_outer_height / 2:.0f} mm**")
+    st.write(f"抽屉中心离地高度：**{drawer_center_height:.0f} mm**")
 
 
 # =========================
@@ -408,6 +442,8 @@ else:
 # 5. 抽屉加载与风险计算
 # =========================
 
+st.header("5. 抽屉加载与风险汇总")
+
 total_drawer_structure_weight = 0.0
 total_loaded_weight = 0.0
 drawer_data = []
@@ -415,6 +451,7 @@ drawer_data = []
 for item in drawer_raw_data:
     loaded_weight = item["storage_volume_dm3"] * 0.136 if load_clothes_enabled else 0
     moving_weight = item["structure_weight"] + loaded_weight
+
     open_moment = moving_weight * 9.8 * (item["extension"] / 1000)
     horizontal_moment = force_n * (min(item["center_height"], 1422) / 1000)
 
@@ -435,10 +472,15 @@ total_drawer_open_moment = sum(item["open_moment"] for item in drawer_data)
 max_single_drawer_moment = max([item["open_moment"] for item in drawer_data], default=0)
 max_single_drawer = max(drawer_data, key=lambda x: x["open_moment"], default=None)
 
-st.header("5. 抽屉加载与风险汇总")
 st.write(f"抽屉结构总重量：**{total_drawer_structure_weight:.2f} kg**")
 st.write(f"模拟衣服总荷重：**{total_loaded_weight:.2f} kg**")
 st.write(f"所有抽屉同时拉开倾覆力矩：**{total_drawer_open_moment:.2f} N·m**")
+
+if max_single_drawer:
+    st.write(
+        f"最危险抽屉：**抽屉 {max_single_drawer['index']}**，"
+        f"力矩 **{max_single_drawer_moment:.2f} N·m**"
+    )
 
 
 # =========================
@@ -501,6 +543,20 @@ if door_enabled:
                 key=f"door_open_angle_{i}"
             )
 
+            handle_position = st.selectbox(
+                f"门板 {i + 1} 拉手位置",
+                [
+                    "最顶部（门板最上端）",
+                    "顶部（90%高度）",
+                    "中部（50%高度）",
+                    "底部（20%高度）",
+                    "最底部（门板最下端）",
+                    "无拉手（push）"
+                ],
+                index=2,
+                key=f"handle_position_{i}"
+            )
+
         if door_type == "内嵌门板":
             door_width = max(0, door_outer_width - 6)
             door_height = max(0, door_outer_height - 6)
@@ -510,51 +566,14 @@ if door_enabled:
 
         door_open_distance = (door_width / 2) * math.sin(math.radians(door_open_angle))
 
-       handle_position = st.selectbox(
-    f"门板 {i + 1} 拉手位置",
-    [
-        "最顶部（门板最上端）",
-        "顶部（90%高度）",
-        "中部（50%高度）",
-        "底部（20%高度）",
-        "最底部（门板最下端）",
-        "无拉手（push）"
-    ],
-    index=2,
-    key=f"handle_position_{i}"
-)
+        handle_height_ratio = get_handle_ratio(handle_position)
+        door_pull_height = door_bottom_height + door_height * handle_height_ratio
 
-if handle_position == "最顶部（门板最上端）":
-    handle_height_ratio = 1.0
-
-elif handle_position == "顶部（90%高度）":
-    handle_height_ratio = 0.9
-
-elif handle_position == "中部（50%高度）":
-    handle_height_ratio = 0.5
-
-elif handle_position == "底部（20%高度）":
-    handle_height_ratio = 0.2
-
-elif handle_position == "最底部（门板最下端）":
-    handle_height_ratio = 0.0
-
-else:
-    # 无拉手（push）
-    handle_height_ratio = 0.5
-
-door_pull_height = (
-    door_bottom_height
-    + door_height * handle_height_ratio
-)
-
-st.write(f"自动计算拉手高度：**{door_pull_height:.0f} mm**")
-
-st.caption(
-    "拉手高度：指 ASTM F2057 水平动态力测试时，"
-    "44N 水平拉力施加在门板上的位置高度。"
-    "高度越高，倾覆风险越大。"
-)
+        st.write(f"自动计算拉手高度：**{door_pull_height:.0f} mm**")
+        st.caption(
+            "拉手高度：指 ASTM F2057 水平动态力测试时，"
+            "44N 水平拉力施加在门板上的位置高度。高度越高，倾覆风险越大。"
+        )
 
         door_weight_mode = st.radio(
             f"门板 {i + 1} 重量计算方式",
@@ -578,7 +597,12 @@ st.caption(
             )
         else:
             if door_structure_type == "板式门板":
-                door_weight = calc_board_weight(door_width, door_height, board_thickness, door_density)
+                door_weight = calc_board_weight(
+                    door_width,
+                    door_height,
+                    board_thickness,
+                    door_density
+                )
 
             elif door_structure_type == "玻璃门板":
                 glass_thickness = st.number_input(
@@ -587,7 +611,13 @@ st.caption(
                     value=4.0,
                     key=f"door_glass_thickness_{i}"
                 )
-                door_weight = calc_board_weight(door_width, door_height, glass_thickness, glass_density)
+
+                door_weight = calc_board_weight(
+                    door_width,
+                    door_height,
+                    glass_thickness,
+                    glass_density
+                )
 
             else:
                 glass_ratio = st.slider(
@@ -598,24 +628,28 @@ st.caption(
                     step=0.05,
                     key=f"door_glass_ratio_{i}"
                 )
+
                 glass_thickness = st.number_input(
                     f"门板 {i + 1} 玻璃厚度 mm",
                     min_value=1.0,
                     value=4.0,
                     key=f"door_mixed_glass_thickness_{i}"
                 )
+
                 board_part_weight = calc_board_weight(
                     door_width,
                     door_height * (1 - glass_ratio),
                     board_thickness,
                     door_density
                 )
+
                 glass_part_weight = calc_board_weight(
                     door_width,
                     door_height * glass_ratio,
                     glass_thickness,
                     glass_density
                 )
+
                 door_weight = board_part_weight + glass_part_weight
 
         door_center_height = door_bottom_height + door_height / 2
@@ -630,6 +664,7 @@ st.caption(
             "center_height": door_center_height,
             "open_distance": door_open_distance,
             "pull_height": door_pull_height,
+            "handle_position": handle_position,
             "open_moment": door_open_moment,
             "horizontal_moment": door_horizontal_moment,
             "structure_type": door_structure_type,
@@ -639,6 +674,7 @@ st.caption(
         st.write(f"门板重量：**{door_weight:.2f} kg**")
         st.write(f"按角度计算的门板重心前移距离：**{door_open_distance:.0f} mm**")
         st.write(f"门板打开前移力矩：**{door_open_moment:.2f} N·m**")
+        st.write(f"门板水平拉力力矩：**{door_horizontal_moment:.2f} N·m**")
 
 total_door_open_moment = sum(item["open_moment"] for item in door_data)
 max_single_door_moment = max([item["open_moment"] for item in door_data], default=0)
@@ -646,6 +682,14 @@ max_single_door = max(door_data, key=lambda x: x["open_moment"], default=None)
 
 st.subheader("柜门打开风险汇总")
 st.write(f"所有柜门同时打开倾覆力矩：**{total_door_open_moment:.2f} N·m**")
+
+if max_single_door:
+    st.write(
+        f"最危险柜门：**门板 {max_single_door['index']}**，"
+        f"结构：**{max_single_door['structure_type']}**，"
+        f"拉手位置：**{max_single_door['handle_position']}**，"
+        f"力矩：**{max_single_door_moment:.2f} N·m**"
+    )
 
 
 # =========================
@@ -811,6 +855,7 @@ for item in child_test_results:
         f"前移/拉出距离 {item['distance']:.0f}mm，"
         f"儿童荷重力矩 {item['moment']:.2f} N·m"
     )
+
     if item["passed"]:
         st.success(msg)
     else:
@@ -922,6 +967,7 @@ else:
     st.error("综合风险：高")
 
 st.subheader("风险点")
+
 if risk_points:
     for item in risk_points:
         st.write(f"- {item}")
@@ -929,6 +975,7 @@ else:
     st.write("暂无明显高风险点。")
 
 st.subheader("优化建议")
+
 if resisting_moment >= required_moment:
     st.success("当前参数下，按安全系数计算，稳定性余量基本足够。")
 else:
