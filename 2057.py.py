@@ -43,8 +43,28 @@ with col2:
 with col3:
     height = st.number_input("柜体外高 mm", min_value=1.0, value=1000.0)
 
-safety_factor = st.number_input("安全系数", min_value=1.0, value=1.2, step=0.1)
+col1, col2 = st.columns([1, 2])
 
+with col1:
+    safety_factor = st.number_input(
+        "安全系数",
+        min_value=1.0,
+        value=1.2,
+        step=0.1
+    )
+
+with col2:
+    st.info(
+        """
+安全系数说明：
+
+- 1.0：完全按理论临界值判断，不推荐  
+- 1.1：轻微保守  
+- 1.2：推荐默认值  
+- 1.3：更保守，适合高柜、窄柜、儿童接触风险高的产品  
+- 1.5：非常保守，适合前期快速筛掉高风险设计
+        """
+    )
 
 # =========================
 # 2. 板件重量自动计算
