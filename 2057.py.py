@@ -73,10 +73,108 @@ with col2:
 
 
 # =========================
-# 2. 板件重量自动计算
+# 2. 底部支撑形式
 # =========================
 
-st.header("2. 板件重量自动计算")
+st.header("2. 底部支撑形式")
+
+support_type = st.selectbox(
+    "底部支撑形式",
+    [
+        "整块底板落地",
+        "四个支撑腿",
+        "前后横向支撑脚/踢脚线",
+        "自定义支撑点"
+    ],
+    index=0
+)
+
+if support_type == "整块底板落地":
+    front_support_from_front_mm = 0.0
+    rear_support_from_front_mm = depth
+    st.write("前支撑点：柜体底板最前边")
+    st.write("后支撑点：柜体底板最后边")
+
+elif support_type == "四个支撑腿":
+    col1, col2 = st.columns(2)
+
+    with col1:
+        front_support_from_front_mm = st.number_input(
+            "前腿中心距离柜体前边 mm",
+            min_value=0.0,
+            max_value=depth,
+            value=30.0
+        )
+
+    with col2:
+        rear_support_from_front_mm = st.number_input(
+            "后腿中心距离柜体前边 mm",
+            min_value=0.0,
+            max_value=depth,
+            value=max(0.0, depth - 30.0)
+        )
+
+elif support_type == "前后横向支撑脚/踢脚线":
+    col1, col2 = st.columns(2)
+
+    with col1:
+        front_support_from_front_mm = st.number_input(
+            "前支撑线距离柜体前边 mm",
+            min_value=0.0,
+            max_value=depth,
+            value=10.0
+        )
+
+    with col2:
+        rear_support_from_front_mm = st.number_input(
+            "后支撑线距离柜体前边 mm",
+            min_value=0.0,
+            max_value=depth,
+            value=max(0.0, depth - 10.0)
+        )
+
+else:
+    col1, col2 = st.columns(2)
+
+    with col1:
+        front_support_from_front_mm = st.number_input(
+            "前支撑点距离柜体前边 mm",
+            min_value=0.0,
+            max_value=depth,
+            value=0.0
+        )
+
+    with col2:
+        rear_support_from_front_mm = st.number_input(
+            "后支撑点距离柜体前边 mm",
+            min_value=0.0,
+            max_value=depth,
+            value=depth
+        )
+
+cog_from_front_mm = st.number_input(
+    "整柜重心距离柜体前边 mm",
+    min_value=0.0,
+    max_value=depth,
+    value=depth / 2
+)
+
+support_span_mm = max(1.0, rear_support_from_front_mm - front_support_from_front_mm)
+resisting_arm_mm = max(0.0, cog_from_front_mm - front_support_from_front_mm)
+
+st.write(f"前后支撑点距离：**{support_span_mm:.0f} mm**")
+st.write(f"重心离前支撑点距离：**{resisting_arm_mm:.0f} mm**")
+st.caption(
+    "说明：前后支撑点距离指柜子真正接触地面的最前支撑点到最后支撑点的距离；"
+    "重心离前支撑点距离越大，抗前倾能力越强。"
+)
+
+
+# =========================
+# 3. 板件重量自动计算
+# =========================
+
+st.header("3. 板件重量自动计算")
 
 material_density_map = {
     "PB板": 675,
@@ -199,10 +297,10 @@ with col3:
 
 
 # =========================
-# 3. 抽屉数据采集
+# 4. 抽屉数据采集
 # =========================
 
-st.header("3. 抽屉重量、体积与打开风险")
+st.header("4. 抽屉重量、体积与打开风险")
 
 force_n = 44
 
@@ -439,10 +537,10 @@ for i in range(int(drawer_count)):
 
 
 # =========================
-# 4. 非延展封闭空间体积
+# 5. 非延展封闭空间体积
 # =========================
 
-st.header("4. 非延展封闭空间体积计算")
+st.header("5. 非延展封闭空间体积计算")
 
 total_extendable_volume_dm3 = sum(item["storage_volume_dm3"] for item in drawer_raw_data)
 total_non_extendable_volume_dm3 = 0.0
@@ -522,10 +620,10 @@ else:
 
 
 # =========================
-# 5. 抽屉加载与风险计算
+# 6. 抽屉加载与风险计算
 # =========================
 
-st.header("5. 抽屉加载与风险汇总")
+st.header("6. 抽屉加载与风险汇总")
 
 total_drawer_structure_weight = 0.0
 total_loaded_weight = 0.0
@@ -567,10 +665,10 @@ if max_single_drawer:
 
 
 # =========================
-# 6. 柜门重量与打开风险
+# 7. 柜门重量与打开风险
 # =========================
 
-st.header("6. 柜门重量与打开风险计算")
+st.header("7. 柜门重量与打开风险计算")
 
 door_enabled = st.checkbox("是否有门板/柜门", value=False)
 
@@ -776,10 +874,10 @@ if max_single_door:
 
 
 # =========================
-# 7. 五金与额外重量
+# 8. 五金与额外重量
 # =========================
 
-st.header("7. 五金与额外重量")
+st.header("8. 五金与额外重量")
 
 col1, col2 = st.columns(2)
 
@@ -805,7 +903,7 @@ weight = (
     + extra_bottom_weight
 )
 
-st.header("8. 整柜重量汇总")
+st.header("9. 整柜重量汇总")
 
 st.metric("自动估算整柜重量", f"{weight:.2f} kg")
 
@@ -820,10 +918,10 @@ st.write(f"""
 
 
 # =========================
-# 8. F2057 适用性判断
+# 9. F2057 适用性判断
 # =========================
 
-st.header("9. 是否属于 F2057 测试范围")
+st.header("10. 是否属于 F2057 测试范围")
 
 is_height_ok = height >= 686
 is_weight_ok = weight >= 13.6
@@ -842,10 +940,10 @@ else:
 
 
 # =========================
-# 9. 水平动态力测试
+# 10. 水平动态力测试
 # =========================
 
-st.header("10. 模拟水平动态力测试")
+st.header("11. 模拟水平动态力测试")
 
 standard_horizontal_moment = force_n * (min(height, 1422) / 1000)
 drawer_max_horizontal_moment = max([item["horizontal_moment"] for item in drawer_data], default=0)
@@ -858,8 +956,8 @@ overturn_moment = max(
 )
 
 gravity_n = weight * 9.8
-half_depth_m = depth / 2 / 1000
-resisting_moment = gravity_n * half_depth_m
+resisting_arm_m = resisting_arm_mm / 1000
+resisting_moment = gravity_n * resisting_arm_m
 
 horizontal_pass = resisting_moment >= overturn_moment * safety_factor
 
@@ -868,6 +966,7 @@ st.write(f"抽屉最大水平拉力力矩：**{drawer_max_horizontal_moment:.2f}
 st.write(f"柜门最大水平拉力力矩：**{door_max_horizontal_moment:.2f} N·m**")
 st.write(f"最终采用的水平倾覆力矩：**{overturn_moment:.2f} N·m**")
 st.write(f"当前抗倾覆力矩：**{resisting_moment:.2f} N·m**")
+st.write(f"重心离前支撑点距离：**{resisting_arm_mm:.0f} mm**")
 
 if horizontal_pass:
     st.success("水平动态力测试预判：风险较低")
@@ -876,10 +975,10 @@ else:
 
 
 # =========================
-# 10. 儿童荷重逐一测试 + 后脚垫块修正
+# 11. 儿童荷重逐一测试 + 后脚垫块修正
 # =========================
 
-st.header("11. 儿童荷重逐一测试")
+st.header("12. 儿童荷重逐一测试")
 
 child_weight = 27.22
 child_force_n = child_weight * 9.8
@@ -896,7 +995,7 @@ estimated_cog_height = st.number_input(
     value=height * 0.45
 )
 
-tilt_angle_rad = math.atan(test_block_height / depth)
+tilt_angle_rad = math.atan(test_block_height / support_span_mm)
 cog_forward_shift_mm = estimated_cog_height * math.tan(tilt_angle_rad)
 block_extra_moment = gravity_n * (cog_forward_shift_mm / 1000)
 
@@ -946,10 +1045,10 @@ for item in child_test_results:
 
 
 # =========================
-# 11. 全部打开风险
+# 12. 全部打开风险
 # =========================
 
-st.header("12. 全部打开风险")
+st.header("13. 全部打开风险")
 
 total_open_moment = total_drawer_open_moment + total_door_open_moment
 
@@ -964,10 +1063,10 @@ st.write(f"当前抗倾覆力矩：**{resisting_moment:.2f} N·m**")
 
 
 # =========================
-# 12. 内锁、防倒五金、警告标贴检查
+# 13. 内锁、防倒五金、警告标贴检查
 # =========================
 
-st.header("13. 内锁、防倒五金与警告标贴检查")
+st.header("14. 内锁、防倒五金与警告标贴检查")
 
 has_interlock = st.checkbox("是否有内锁装置", value=False)
 
@@ -993,10 +1092,10 @@ warning_label_pass = has_warning_label and warning_label_visible and warning_lab
 
 
 # =========================
-# 13. 综合判断与优化建议
+# 14. 综合判断与优化建议
 # =========================
 
-st.header("14. 综合判断与优化建议")
+st.header("15. 综合判断与优化建议")
 
 required_moment = max(
     overturn_moment * safety_factor,
@@ -1006,11 +1105,11 @@ required_moment = max(
     total_open_moment * safety_factor
 )
 
-required_depth_m = required_moment / gravity_n * 2 if gravity_n > 0 else 0
-required_depth_mm = required_depth_m * 1000
-extra_depth_mm = max(0, required_depth_mm - depth)
+required_resisting_arm_m = required_moment / gravity_n if gravity_n > 0 else 0
+required_resisting_arm_mm = required_resisting_arm_m * 1000
+extra_arm_mm = max(0, required_resisting_arm_mm - resisting_arm_mm)
 
-required_weight_kg = required_moment / (9.8 * half_depth_m) if half_depth_m > 0 else 0
+required_weight_kg = required_moment / (9.8 * resisting_arm_m) if resisting_arm_m > 0 else 0
 extra_weight_kg = max(0, required_weight_kg - weight)
 
 risk_points = []
@@ -1062,18 +1161,21 @@ st.subheader("优化建议")
 if resisting_moment >= required_moment:
     st.success("当前参数下，按安全系数计算，稳定性余量基本足够。")
 else:
-    st.write(f"柜体深度至少增加约 **{extra_depth_mm:.0f} mm**")
-    st.write(f"建议深度：**{required_depth_mm:.0f} mm 以上**")
+    st.write(f"当前重心离前支撑点距离：**{resisting_arm_mm:.0f} mm**")
+    st.write(f"建议重心离前支撑点距离：**{required_resisting_arm_mm:.0f} mm 以上**")
+    st.write(f"还需增加重心离前支撑点距离：**{extra_arm_mm:.0f} mm**")
+    st.write("可通过：前脚尽量前移、后脚尽量后移、底部配重靠后靠下、增加支撑脚外扩尺寸来改善。")
+
     st.write(f"整柜重量至少增加约 **{extra_weight_kg:.1f} kg**")
     st.write(f"建议重量：**{required_weight_kg:.1f} kg 以上**")
-    st.write(f"建议优先把新增重量放在柜体底部，当前建议底部增重约 **{extra_weight_kg:.1f} kg**。")
+    st.write(f"建议优先把新增重量放在柜体底部偏后位置，当前建议底部增重约 **{extra_weight_kg:.1f} kg**。")
 
 
 # =========================
-# 14. 报告下载
+# 15. 报告下载
 # =========================
 
-st.header("15. 测试预判报告摘要")
+st.header("16. 测试预判报告摘要")
 
 report = f"""
 产品名称：{product_name}
@@ -1082,6 +1184,14 @@ report = f"""
 - 宽度：{width:.0f} mm
 - 深度：{depth:.0f} mm
 - 高度：{height:.0f} mm
+
+底部支撑：
+- 底部支撑形式：{support_type}
+- 前支撑点距离柜体前边：{front_support_from_front_mm:.0f} mm
+- 后支撑点距离柜体前边：{rear_support_from_front_mm:.0f} mm
+- 前后支撑点距离：{support_span_mm:.0f} mm
+- 整柜重心距离柜体前边：{cog_from_front_mm:.0f} mm
+- 重心离前支撑点距离：{resisting_arm_mm:.0f} mm
 
 材料密度：
 - 柜体主材料：{main_material}，{density} kg/m³
@@ -1117,6 +1227,7 @@ F2057 适用性：
 - 所有柜门同时打开力矩：{total_door_open_moment:.2f} N·m
 - 所有抽屉 + 柜门同时打开力矩：{total_open_moment:.2f} N·m
 - 后脚垫块修正力矩：{block_extra_moment:.2f} N·m
+- 当前抗倾覆力矩：{resisting_moment:.2f} N·m
 
 合规检查：
 - 内锁装置：{"通过/不适用" if interlock_pass else "存在风险"}
@@ -1127,8 +1238,8 @@ F2057 适用性：
 {chr(10).join(["- " + item for item in risk_points]) if risk_points else "- 暂无明显高风险点"}
 
 优化建议：
-- 建议柜体深度：{required_depth_mm:.0f} mm 以上
-- 需要增加深度：{extra_depth_mm:.0f} mm
+- 建议重心离前支撑点距离：{required_resisting_arm_mm:.0f} mm 以上
+- 还需增加重心离前支撑点距离：{extra_arm_mm:.0f} mm
 - 建议整柜重量：{required_weight_kg:.1f} kg 以上
 - 建议底部增重：{extra_weight_kg:.1f} kg
 
