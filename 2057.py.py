@@ -7,10 +7,6 @@ st.title("柜类产品 F2057 防倾倒测试预判工具")
 st.warning("本工具仅用于设计阶段预判，不能替代 ASTM F2057-23 正式实验室测试。")
 
 
-# =========================
-# 工具函数
-# =========================
-
 def calc_board_weight(length_mm, width_mm, thickness_mm, density_kg_m3):
     volume_m3 = length_mm * width_mm * thickness_mm / 1_000_000_000
     return volume_m3 * density_kg_m3
@@ -19,10 +15,8 @@ def calc_board_weight(length_mm, width_mm, thickness_mm, density_kg_m3):
 def calc_frame_weight(outer_length, outer_width, frame_width, thickness, density):
     inner_length = max(0, outer_length - 2 * frame_width)
     inner_width = max(0, outer_width - 2 * frame_width)
-
     outer_weight = calc_board_weight(outer_length, outer_width, thickness, density)
     inner_weight = calc_board_weight(inner_length, inner_width, thickness, density)
-
     return max(0, outer_weight - inner_weight)
 
 
@@ -62,12 +56,7 @@ with col3:
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    safety_factor = st.number_input(
-        "安全系数",
-        min_value=1.0,
-        value=1.2,
-        step=0.1
-    )
+    safety_factor = st.number_input("安全系数", min_value=1.0, value=1.2, step=0.1)
 
 with col2:
     st.info(
@@ -106,14 +95,34 @@ main_material = st.selectbox(
 density = material_density_map[main_material]
 
 door_material = st.selectbox(
-    "门板/抽面默认材料",
-    ["同柜体主材料", "MDF板-柜体/横条/门板/抽面/抽盒", "MDF板-吸塑门板"],
+    "柜门默认材料",
+    ["同柜体主材料", "MDF板-柜体/横条/门板/抽面/抽盒", "MDF板-吸塑门板", "玻璃"],
     index=0
 )
 
-door_density = density if door_material == "同柜体主材料" else material_density_map[door_material]
+if door_material == "同柜体主材料":
+    door_density = density
+else:
+    door_density = material_density_map[door_material]
+
+drawer_front_material = st.selectbox(
+    "抽面默认材料",
+    ["同柜体主材料", "MDF板-柜体/横条/门板/抽面/抽盒", "MDF板-吸塑门板", "玻璃"],
+    index=0
+)
+
+if drawer_front_material == "同柜体主材料":
+    drawer_front_density = density
+else:
+    drawer_front_density = material_density_map[drawer_front_material]
+
 back_bottom_density = material_density_map["MDF板-背板/抽屉底板"]
 glass_density = material_density_map["玻璃"]
+
+st.write(f"柜体主材料密度：**{density} kg/m³**")
+st.write(f"柜门默认材料密度：**{door_density} kg/m³**")
+st.write(f"抽面默认材料密度：**{drawer_front_density} kg/m³**")
+st.write(f"背板/抽屉底板密度：**{back_bottom_density} kg/m³**")
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -281,15 +290,85 @@ for i in range(int(drawer_count)):
         drawer_front_width = max(0, drawer_outer_width - 2)
         drawer_front_height = max(0, drawer_outer_height - 3)
 
+    drawer_front_weight_mode = st.radio(
+        f"抽屉 {i + 1} 抽面重量计算方式",
+        ["按材质自动计算", "手动填写重量"],
+        horizontal=True,
+        key=f"drawer_front_weight_mode_{i}"
+    )
+
+    drawer_front_structure_type = st.selectbox(
+        f"抽屉 {i + 1} 抽面结构类型",
+        ["板式抽面", "玻璃抽面", "板式+玻璃混合抽面"],
+        key=f"drawer_front_structure_type_{i}"
+    )
+
+    if drawer_front_weight_mode == "手动填写重量":
+        drawer_front_weight = st.number_input(
+            f"抽屉 {i + 1} 抽面实际重量 kg",
+            min_value=0.0,
+            value=2.0,
+            key=f"drawer_front_manual_weight_{i}"
+        )
+    else:
+        if drawer_front_structure_type == "板式抽面":
+            drawer_front_weight = calc_board_weight(
+                drawer_front_width,
+                drawer_front_height,
+                drawer_panel_thickness,
+                drawer_front_density
+            )
+
+        elif drawer_front_structure_type == "玻璃抽面":
+            drawer_front_glass_thickness = st.number_input(
+                f"抽屉 {i + 1} 玻璃厚度 mm",
+                min_value=1.0,
+                value=4.0,
+                key=f"drawer_front_glass_thickness_{i}"
+            )
+
+            drawer_front_weight = calc_board_weight(
+                drawer_front_width,
+                drawer_front_height,
+                drawer_front_glass_thickness,
+                glass_density
+            )
+
+        else:
+            drawer_front_glass_ratio = st.slider(
+                f"抽屉 {i + 1} 玻璃面积占比",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.5,
+                step=0.05,
+                key=f"drawer_front_glass_ratio_{i}"
+            )
+
+            drawer_front_glass_thickness = st.number_input(
+                f"抽屉 {i + 1} 玻璃厚度 mm",
+                min_value=1.0,
+                value=4.0,
+                key=f"drawer_front_glass_thickness_mixed_{i}"
+            )
+
+            board_part_weight = calc_board_weight(
+                drawer_front_width,
+                drawer_front_height * (1 - drawer_front_glass_ratio),
+                drawer_panel_thickness,
+                drawer_front_density
+            )
+
+            glass_part_weight = calc_board_weight(
+                drawer_front_width,
+                drawer_front_height * drawer_front_glass_ratio,
+                drawer_front_glass_thickness,
+                glass_density
+            )
+
+            drawer_front_weight = board_part_weight + glass_part_weight
+
     drawer_inner_width = max(0, drawer_front_width - 2 * drawer_box_thickness)
     drawer_box_height = max(0, drawer_front_height - 30)
-
-    drawer_front_weight = calc_board_weight(
-        drawer_front_width,
-        drawer_front_height,
-        drawer_panel_thickness,
-        door_density
-    )
 
     drawer_back_weight = calc_board_weight(
         drawer_inner_width,
@@ -339,6 +418,8 @@ for i in range(int(drawer_count)):
     drawer_raw_data.append({
         "index": i + 1,
         "structure_weight": single_drawer_structure_weight,
+        "front_weight": drawer_front_weight,
+        "front_structure_type": drawer_front_structure_type,
         "storage_volume_dm3": drawer_storage_volume_dm3,
         "bottom_height": drawer_bottom_height,
         "outer_height": drawer_outer_height,
@@ -350,6 +431,8 @@ for i in range(int(drawer_count)):
     })
 
     st.write(f"抽面计算尺寸：**{drawer_front_width:.0f} × {drawer_front_height:.0f} mm**")
+    st.write(f"抽面结构类型：**{drawer_front_structure_type}**")
+    st.write(f"抽面重量：**{drawer_front_weight:.2f} kg**")
     st.write(f"抽屉结构自重：**{single_drawer_structure_weight:.2f} kg**")
     st.write(f"抽屉封闭存储体积：**{drawer_storage_volume_dm3:.2f} dm³**")
     st.write(f"抽屉中心离地高度：**{drawer_center_height:.0f} mm**")
@@ -999,6 +1082,12 @@ report = f"""
 - 宽度：{width:.0f} mm
 - 深度：{depth:.0f} mm
 - 高度：{height:.0f} mm
+
+材料密度：
+- 柜体主材料：{main_material}，{density} kg/m³
+- 柜门默认材料：{door_material}，{door_density} kg/m³
+- 抽面默认材料：{drawer_front_material}，{drawer_front_density} kg/m³
+- 背板/抽屉底板：MDF板-背板/抽屉底板，{back_bottom_density} kg/m³
 
 封闭存储体积：
 - 可延展部件体积：{total_extendable_volume_dm3:.2f} dm³
