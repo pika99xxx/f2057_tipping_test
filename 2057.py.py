@@ -353,6 +353,20 @@ for i in range(int(drawer_count)):
             key=f"drawer_bottom_height_{i}"
         )
 
+        drawer_handle_position = st.selectbox(
+            f"抽屉 {i + 1} 拉手位置",
+            [
+                "最顶部（门板最上端）",
+                "顶部（90%高度）",
+                "中部（50%高度）",
+                "底部（20%高度）",
+                "最底部（门板最下端）",
+                "无拉手（push）"
+            ],
+            index=2,
+            key=f"drawer_handle_position_{i}"
+        )
+
     col5, col6 = st.columns(2)
 
     with col5:
@@ -512,6 +526,8 @@ for i in range(int(drawer_count)):
     )
 
     drawer_center_height = drawer_bottom_height + drawer_outer_height / 2
+    drawer_handle_height_ratio = get_handle_ratio(drawer_handle_position)
+    drawer_handle_height = drawer_bottom_height + drawer_front_height * drawer_handle_height_ratio
 
     drawer_raw_data.append({
         "index": i + 1,
@@ -522,6 +538,8 @@ for i in range(int(drawer_count)):
         "bottom_height": drawer_bottom_height,
         "outer_height": drawer_outer_height,
         "center_height": drawer_center_height,
+        "handle_position": drawer_handle_position,
+        "handle_height": drawer_handle_height,
         "extension": drawer_extension,
         "inner_width": drawer_inner_width,
         "inner_depth": drawer_inner_depth,
@@ -534,6 +552,8 @@ for i in range(int(drawer_count)):
     st.write(f"抽屉结构自重：**{single_drawer_structure_weight:.2f} kg**")
     st.write(f"抽屉封闭存储体积：**{drawer_storage_volume_dm3:.2f} dm³**")
     st.write(f"抽屉中心离地高度：**{drawer_center_height:.0f} mm**")
+    st.write(f"抽屉拉手位置：**{drawer_handle_position}**")
+    st.write(f"自动计算抽屉拉手高度：**{drawer_handle_height:.0f} mm**")
 
 
 # =========================
@@ -634,7 +654,7 @@ for item in drawer_raw_data:
     moving_weight = item["structure_weight"] + loaded_weight
 
     open_moment = moving_weight * 9.8 * (item["extension"] / 1000)
-    horizontal_moment = force_n * (min(item["center_height"], 1422) / 1000)
+    horizontal_moment = force_n * (min(item["handle_height"], 1422) / 1000)
 
     total_drawer_structure_weight += item["structure_weight"]
     total_loaded_weight += loaded_weight
@@ -752,8 +772,8 @@ if door_enabled:
 
         st.write(f"自动计算拉手高度：**{door_pull_height:.0f} mm**")
         st.caption(
-            "拉手高度：指 ASTM F2057 水平动态力测试时，"
-            "44N 水平拉力施加在门板上的位置高度。高度越高，倾覆风险越大。"
+            "柜门拉手高度：仅在有柜门时参与水平动态力测试。"
+            "系统会用该高度计算 44N 水平拉力产生的倾覆力矩。"
         )
 
         door_weight_mode = st.radio(
@@ -946,14 +966,36 @@ else:
 st.header("11. 模拟水平动态力测试")
 
 standard_horizontal_moment = force_n * (min(height, 1422) / 1000)
-drawer_max_horizontal_moment = max([item["horizontal_moment"] for item in drawer_data], default=0)
-door_max_horizontal_moment = max([item["horizontal_moment"] for item in door_data], default=0)
 
-overturn_moment = max(
-    standard_horizontal_moment,
-    drawer_max_horizontal_moment,
-    door_max_horizontal_moment
+drawer_horizontal_items = [
+    {
+        "source": f"抽屉 {item['index']}（{item.get('handle_position', '中部（50%高度）')}）",
+        "height": item.get("handle_height", item.get("center_height", 0)),
+        "moment": item["horizontal_moment"],
+    }
+    for item in drawer_data
+]
+
+door_horizontal_items = [
+    {
+        "source": f"柜门 {item['index']}（{item.get('handle_position', '中部（50%高度）')}）",
+        "height": item.get("pull_height", 0),
+        "moment": item["horizontal_moment"],
+    }
+    for item in door_data
+]
+
+all_horizontal_items = (
+    [{"source": "柜体标准最高测试高度", "height": min(height, 1422), "moment": standard_horizontal_moment}]
+    + drawer_horizontal_items
+    + door_horizontal_items
 )
+
+max_horizontal_item = max(all_horizontal_items, key=lambda x: x["moment"])
+drawer_max_horizontal_moment = max([item["moment"] for item in drawer_horizontal_items], default=0)
+door_max_horizontal_moment = max([item["moment"] for item in door_horizontal_items], default=0)
+
+overturn_moment = max_horizontal_item["moment"]
 
 gravity_n = weight * 9.8
 resisting_arm_m = resisting_arm_mm / 1000
@@ -965,6 +1007,8 @@ st.write(f"标准水平拉力力矩：**{standard_horizontal_moment:.2f} N·m**"
 st.write(f"抽屉最大水平拉力力矩：**{drawer_max_horizontal_moment:.2f} N·m**")
 st.write(f"柜门最大水平拉力力矩：**{door_max_horizontal_moment:.2f} N·m**")
 st.write(f"最终采用的水平倾覆力矩：**{overturn_moment:.2f} N·m**")
+st.write(f"水平动态力作用来源：**{max_horizontal_item['source']}**")
+st.write(f"水平动态力作用高度：**{min(max_horizontal_item['height'], 1422):.0f} mm**")
 st.write(f"当前抗倾覆力矩：**{resisting_moment:.2f} N·m**")
 st.write(f"重心离前支撑点距离：**{resisting_arm_mm:.0f} mm**")
 
@@ -1222,6 +1266,8 @@ F2057 适用性：
 
 稳定性预判：
 - 水平动态力测试：{"通过预判" if horizontal_pass else "风险较高"}
+- 水平动态力作用来源：{max_horizontal_item["source"]}
+- 水平动态力作用高度：{min(max_horizontal_item["height"], 1422):.0f} mm
 - 儿童荷重逐一测试：{"通过预判" if child_pass else "存在风险"}
 - 所有抽屉同时拉开力矩：{total_drawer_open_moment:.2f} N·m
 - 所有柜门同时打开力矩：{total_door_open_moment:.2f} N·m
